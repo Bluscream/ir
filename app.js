@@ -30,7 +30,6 @@
     copyButton: document.getElementById("copyAllButton"),
     clearButton: document.getElementById("clearButton"),
     metadata: document.getElementById("metadataOutput"),
-    jsonOutput: document.getElementById("jsonOutput"),
     settings: {
       endpoint: document.getElementById("endpointInput"),
       defaultFrequency: document.getElementById("defaultFrequencyInput"),
@@ -464,7 +463,6 @@
         updateUI();
       } else {
         renderMetadata();
-        updateJsonOutput();
       }
     } catch (error) {
       state.lastError = error.message;
@@ -476,7 +474,6 @@
     isUpdating = true;
     if (!state.timings.length) {
       elements.copyButton.disabled = true;
-      elements.jsonOutput.textContent = "";
       renderMetadata();
       isUpdating = false;
       return;
@@ -505,18 +502,8 @@
         setMessage(input.dataset.format, error.message, true);
       }
     });
-    updateJsonOutput();
     renderMetadata();
     isUpdating = false;
-  }
-
-  function updateJsonOutput() {
-    if (!state.timings.length) {
-      elements.jsonOutput.textContent = "";
-      return;
-    }
-    const payload = buildSummaryJson();
-    elements.jsonOutput.textContent = JSON.stringify(payload, null, 2);
   }
 
   function buildSummaryJson() {
@@ -530,7 +517,6 @@
         ? state.irsockPronto
         : formatHandlers.pronto.format(outputState);
     summary.lirc = formatHandlers.lirc.format(outputState);
-    summary.json = formatHandlers.json.format(outputState);
     summary.arduino = formatHandlers.arduino.format(outputState);
     summary.array = canonicalTimings.slice();
 
