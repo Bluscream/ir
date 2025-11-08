@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IR Pattern Converter</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <h1>IR Pattern Converter</h1>
+            <p>Paste any supported infrared pattern format to populate every other field and fetch live metadata.</p>
+        </div>
+    </header>
+    <main class="container">
+        <section class="controls">
+            <div class="field-group">
+                <label for="rawInput">Raw (+/- pulse spacing)</label>
+                <textarea id="rawInput" data-format="raw" placeholder="+9094 -4399 +617"></textarea>
+                <p class="field-message" data-message-for="raw"></p>
+            </div>
+            <div class="field-group">
+                <label for="csvInput">CSV (e.g. 0,9094,4399,617)</label>
+                <textarea id="csvInput" data-format="csv" placeholder="0,9094,4399,617"></textarea>
+                <p class="field-message" data-message-for="csv"></p>
+            </div>
+            <div class="field-group">
+                <label for="prontoInput">Pronto Hex</label>
+                <textarea id="prontoInput" data-format="pronto" placeholder="0000 006D 000A 0000 0022 0022 ..."></textarea>
+                <p class="field-message" data-message-for="pronto"></p>
+            </div>
+            <div class="field-group">
+                <label for="lircInput">LIRC (space separated microseconds)</label>
+                <textarea id="lircInput" data-format="lirc" placeholder="9094 4399 617 ..."></textarea>
+                <p class="field-message" data-message-for="lirc"></p>
+            </div>
+            <div class="field-group">
+                <label for="jsonArrayInput">JSON Array</label>
+                <textarea id="jsonArrayInput" data-format="json" placeholder="[9094,4399,617]"></textarea>
+                <p class="field-message" data-message-for="json"></p>
+            </div>
+            <div class="field-group">
+                <label for="arduinoInput">Arduino IRremote (rawData)</label>
+                <textarea id="arduinoInput" data-format="arduino" placeholder="unsigned int rawData[] = {9094,4399,617};"></textarea>
+                <p class="field-message" data-message-for="arduino"></p>
+            </div>
+            <div class="field-group">
+                <label for="frequencyInput">Carrier Frequency (Hz)</label>
+                <input id="frequencyInput" type="number" min="1000" max="100000" step="100" value="38000">
+                <p class="field-message" data-message-for="frequency"></p>
+            </div>
+            <div class="button-row">
+                <button id="copyAllButton" type="button">Copy All Formats</button>
+                <button id="clearButton" type="button">Clear All</button>
+            </div>
+        </section>
+        <section class="output">
+            <h2>IRSock Metadata</h2>
+            <div id="metadataOutput" class="metadata"></div>
+        </section>
+        <section class="output">
+            <h2>Generated JSON</h2>
+            <pre id="jsonOutput" aria-live="polite"></pre>
+        </section>
+    </main>
+    <footer>
+        <div class="container">
+            <small>Powered by <a href="https://irsock.flirc.io:3030/endpoint" rel="noopener noreferrer">Flirc IRSock</a></small>
+        </div>
+    </footer>
+    <script src="app.js" defer></script>
+</body>
+
+</html>
