@@ -70,6 +70,8 @@
     leadingMark: true,
     frequencyHz: config.defaultFrequency,
     irsock: null,
+    irsockRaw: null,
+    irsockPronto: null,
     lastError: null,
   };
 
@@ -346,7 +348,11 @@
   elements.settings.prontoClock.addEventListener("change", () => {
     const value = Number(elements.settings.prontoClock.value);
     if (!Number.isFinite(value) || value <= 0) {
-      setMessage("prontoClock", "Pronto clock must be greater than zero.", true);
+      setMessage(
+        "prontoClock",
+        "Pronto clock must be greater than zero.",
+        true
+      );
       elements.settings.prontoClock.value = config.prontoClock;
       return;
     }
@@ -387,6 +393,8 @@
     state.sourceFormat = null;
     state.leadingMark = true;
     state.irsock = null;
+    state.irsockRaw = null;
+    state.irsockPronto = null;
     state.lastError = null;
     if (metadataTimer) {
       clearTimeout(metadataTimer);
@@ -436,8 +444,28 @@
       if (json && json.frequency_hz) {
         setFrequency(json.frequency_hz, true);
       }
-      renderMetadata();
-      updateJsonOutput();
+      const serverRaw = Array.isArray(json?.raw)
+        ? normaliseTimings(json.raw)
+        : null;
+      const hasServerRaw = Boolean(serverRaw && serverRaw.length);
+      if (hasServerRaw) {
+        state.timings = serverRaw;
+        state.irsockRaw = serverRaw;
+      } else {
+        state.irsockRaw = null;
+      }
+      const prontoValue =
+        typeof json?.pronto === "string" && json.pronto.trim().length
+          ? json.pronto.trim()
+          : null;
+      state.irsockPronto = prontoValue;
+      const shouldRefreshUI = hasServerRaw || Boolean(prontoValue);
+      if (shouldRefreshUI) {
+        updateUI();
+      } else {
+        renderMetadata();
+        updateJsonOutput();
+      }
     } catch (error) {
       state.lastError = error.message;
       renderMetadata();
@@ -453,6 +481,8 @@
       isUpdating = false;
       return;
     }
+    const canonicalTimings = state.irsockRaw ?? state.timings;
+    const outputState = { ...state, timings: canonicalTimings };
     elements.copyButton.disabled = false;
     elements.inputs.forEach((input) => {
       if (input === skipElement) {
@@ -463,7 +493,13 @@
         return;
       }
       try {
-        input.value = handler.format(state);
+        let value;
+        if (input.dataset.format === "pronto" && state.irsockPronto) {
+          value = state.irsockPronto;
+        } else {
+          value = handler.format(outputState);
+        }
+        input.value = value;
         clearMessage(input.dataset.format);
       } catch (error) {
         setMessage(input.dataset.format, error.message, true);
@@ -484,29 +520,54 @@
   }
 
   function buildSummaryJson() {
-    const summary = {
-      _metadata: {
-        generated_at: new Date().toISOString(),
-        source_format: state.sourceFormat,
-        frequency_hz: state.frequencyHz,
-        sample_count: state.timings.length,
-        settings: {
-          irsock_endpoint: config.irsockEndpoint,
-          default_frequency_hz: config.defaultFrequency,
-          pronto_clock_us: config.prontoClock,
-        },
-      },
-      raw: formatHandlers.raw.format(state),
-      csv: formatHandlers.csv.format(state),
-      pronto: formatHandlers.pronto.format(state),
-      lirc: formatHandlers.lirc.format(state),
-      json: formatHandlers.json.format(state),
-      arduino: formatHandlers.arduino.format(state),
-      raw_array: state.timings,
+    const canonicalTimings = state.irsockRaw ?? state.timings;
+    const outputState = { ...state, timings: canonicalTimings };
+    const summary = {};
+    summary.raw = formatHandlers.raw.format(outputState);
+    summary.csv = formatHandlers.csv.format(outputState);
+    summary.pronto =
+      state.irsockPronto && state.irsockPronto.length
+        ? state.irsockPronto
+        : formatHandlers.pronto.format(outputState);
+    summary.lirc = formatHandlers.lirc.format(outputState);
+    summary.json = formatHandlers.json.format(outputState);
+    summary.arduino = formatHandlers.arduino.format(outputState);
+    summary.array = canonicalTimings.slice();
+
+    const metadata = {
+      generated_at: new Date().toISOString(),
+      source_format: state.sourceFormat,
+      frequency_hz: state.frequencyHz,
+      sample_count: canonicalTimings.length,
+      irsock_endpoint: config.irsockEndpoint,
+      default_frequency_hz: config.defaultFrequency,
+      pronto_clock_us: config.prontoClock,
     };
+
+    const reservedKeys = new Set(
+      Object.keys(summary).map((key) => key.toLowerCase())
+    );
+    reservedKeys.add("_metadata");
+    [
+      "generated_at",
+      "source_format",
+      "frequency_hz",
+      "sample_count",
+      "irsock_endpoint",
+      "default_frequency_hz",
+      "pronto_clock_us",
+    ].forEach((key) => reservedKeys.add(key));
+
     if (state.irsock) {
-      summary._metadata.irsock = state.irsock;
+      Object.entries(state.irsock).forEach(([key, value]) => {
+        if (reservedKeys.has(String(key).toLowerCase())) {
+          return;
+        }
+        metadata[key] = value;
+      });
     }
+
+    summary._metadata = metadata;
     return summary;
   }
 
