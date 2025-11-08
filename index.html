@@ -11,11 +11,34 @@
 <body>
     <header>
         <div class="container">
-            <h1>IR Pattern Converter</h1>
+            <div class="header-top">
+                <h1>IR Pattern Converter</h1>
+                <nav class="navbar">
+                    <a href="https://ir.flirc.io/" target="_blank" rel="noopener noreferrer">IR Decoder by Flirc</a>
+                </nav>
+            </div>
             <p>Paste any supported infrared pattern format to populate every other field and fetch live metadata.</p>
         </div>
     </header>
     <main class="container">
+        <section class="settings">
+            <h2>Configuration</h2>
+            <div class="field-group">
+                <label for="endpointInput">IRSock Endpoint</label>
+                <input id="endpointInput" type="url" placeholder="https://irsock.flirc.io:3030/endpoint">
+                <p class="field-message" data-message-for="endpoint"></p>
+            </div>
+            <div class="field-group">
+                <label for="defaultFrequencyInput">Default Frequency (Hz)</label>
+                <input id="defaultFrequencyInput" type="number" min="1000" max="200000" step="100">
+                <p class="field-message" data-message-for="defaultFrequency"></p>
+            </div>
+            <div class="field-group">
+                <label for="prontoClockInput">Pronto Clock (µs)</label>
+                <input id="prontoClockInput" type="number" min="0.001" step="0.000001">
+                <p class="field-message" data-message-for="prontoClock"></p>
+            </div>
+        </section>
         <section class="controls">
             <div class="field-group">
                 <label for="rawInput">Raw (+/- pulse spacing)</label>

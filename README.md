@@ -11,7 +11,8 @@ Static web interface for converting between common infrared signal formats and r
   - LIRC style microsecond timings
   - JSON arrays
   - Arduino IRremote `rawData` snippets
-- Automatic carrier frequency handling with manual override.
+- Automatic carrier frequency handling with manual override and configurable defaults.
+- IRSock endpoint and Pronto clock overrides via settings panel or URL query parameters (e.g. `?endpoint=...&defaultFrequency=...&raw=...`).
 - Debounced requests to `https://irsock.flirc.io:3030/endpoint` for protocol metadata that is rendered in-page and included in the export.
 - Single-click export of a consolidated JSON document containing metadata and every supported format.
 
@@ -36,4 +37,3 @@ Then navigate to `http://localhost:8080/index.html`.
 ## Deployment
 
 Push the contents of this directory to the `bluscream.github.io` repository under the `ir` path, or host directly as part of a GitHub Pages project site.
-

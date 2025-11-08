@@ -27,6 +27,32 @@ footer {
     margin-top: 2rem;
 }
 
+.header-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.navbar a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.15);
+    color: #38bdf8;
+    text-decoration: none;
+    font-weight: 600;
+    transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.navbar a:hover {
+    background: rgba(14, 165, 233, 0.2);
+    transform: translateY(-1px);
+}
+
 .container {
     width: min(1200px, 90vw);
     margin: 0 auto;
@@ -38,10 +64,21 @@ h2 {
     font-weight: 600;
 }
 
+.settings,
 .controls {
     display: grid;
     gap: 1.5rem;
     margin: 2rem 0;
+}
+
+.settings {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    align-items: start;
+}
+
+.settings h2 {
+    grid-column: 1 / -1;
+    margin-bottom: 0.5rem;
 }
 
 .field-group {
@@ -51,24 +88,30 @@ h2 {
 }
 
 textarea,
-input[type="number"] {
+input[type="number"],
+input[type="url"] {
     width: 100%;
     padding: 0.75rem;
     border-radius: 0.5rem;
     border: 1px solid rgba(148, 163, 184, 0.4);
     background: rgba(15, 23, 42, 0.8);
     color: inherit;
+}
+
+textarea {
     resize: vertical;
     min-height: 120px;
 }
 
 textarea:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,
+input[type="url"]:focus {
     outline: 2px solid #38bdf8;
     outline-offset: 2px;
 }
 
-input[type="number"] {
+input[type="number"],
+input[type="url"] {
     min-height: auto;
 }
 
@@ -164,4 +207,3 @@ button:disabled {
         grid-column: 1 / -1;
     }
 }
-

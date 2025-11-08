@@ -1,35 +1,74 @@
 (() => {
-  const IRSOCK_ENDPOINT = "https://irsock.flirc.io:3030/endpoint";
-  const DEFAULT_FREQUENCY = 38000;
-  const PRONTO_CLOCK = 0.241246; // microseconds
+  const DEFAULTS = {
+    irsockEndpoint: "https://irsock.flirc.io:3030/endpoint",
+    defaultFrequency: 38000,
+    prontoClock: 0.241246,
+  };
+
+  const params = new URLSearchParams(window.location.search);
+
+  const config = {
+    irsockEndpoint: getStringParam(params, "endpoint", DEFAULTS.irsockEndpoint),
+    defaultFrequency: getNumberParam(
+      params,
+      "defaultFrequency",
+      DEFAULTS.defaultFrequency
+    ),
+    prontoClock: getNumberParam(
+      params,
+      "prontoClock",
+      DEFAULTS.prontoClock,
+      (value) => value > 0
+    ),
+  };
 
   const elements = {
     inputs: Array.from(document.querySelectorAll("[data-format]")),
+    inputMap: new Map(),
     messages: new Map(),
     frequency: document.getElementById("frequencyInput"),
     copyButton: document.getElementById("copyAllButton"),
     clearButton: document.getElementById("clearButton"),
     metadata: document.getElementById("metadataOutput"),
     jsonOutput: document.getElementById("jsonOutput"),
+    settings: {
+      endpoint: document.getElementById("endpointInput"),
+      defaultFrequency: document.getElementById("defaultFrequencyInput"),
+      prontoClock: document.getElementById("prontoClockInput"),
+    },
   };
 
   elements.inputs.forEach((input) => {
     const key = input.dataset.format;
+    elements.inputMap.set(key, input);
     const messageNode = document.querySelector(`[data-message-for="${key}"]`);
     if (messageNode) {
       elements.messages.set(key, messageNode);
     }
   });
+
   elements.messages.set(
     "frequency",
     document.querySelector('[data-message-for="frequency"]')
+  );
+  elements.messages.set(
+    "endpoint",
+    document.querySelector('[data-message-for="endpoint"]')
+  );
+  elements.messages.set(
+    "defaultFrequency",
+    document.querySelector('[data-message-for="defaultFrequency"]')
+  );
+  elements.messages.set(
+    "prontoClock",
+    document.querySelector('[data-message-for="prontoClock"]')
   );
 
   const state = {
     timings: [],
     sourceFormat: null,
     leadingMark: true,
-    frequencyHz: DEFAULT_FREQUENCY,
+    frequencyHz: config.defaultFrequency,
     irsock: null,
     lastError: null,
   };
@@ -104,23 +143,25 @@
         if (payload.length < expectedWords) {
           throw new Error("Pronto payload is shorter than expected.");
         }
-        const baseUnit = freqWord * PRONTO_CLOCK;
+        const baseUnit = freqWord * config.prontoClock;
         const timings = normaliseTimings(
           payload.map((word) => word * baseUnit)
         );
         if (!timings.length) {
           throw new Error("No valid timings decoded from Pronto.");
         }
-        const frequencyHz = Math.round(1_000_000 / (freqWord * PRONTO_CLOCK));
+        const frequencyHz = Math.round(
+          1_000_000 / (freqWord * config.prontoClock)
+        );
         return { timings, frequencyHz, leadingMark: true };
       },
       format(currentState) {
-        const freqHz = currentState.frequencyHz || DEFAULT_FREQUENCY;
+        const freqHz = currentState.frequencyHz || config.defaultFrequency;
         const freqWord = Math.max(
           1,
-          Math.round(1_000_000 / (freqHz * PRONTO_CLOCK))
+          Math.round(1_000_000 / (freqHz * config.prontoClock))
         );
-        const unit = freqWord * PRONTO_CLOCK;
+        const unit = freqWord * config.prontoClock;
         const words = currentState.timings.map((duration) =>
           Math.max(1, Math.round(duration / unit))
         );
@@ -258,7 +299,59 @@
       return;
     }
     clearMessage("frequency");
-    state.frequencyHz = value;
+    setFrequency(value, true);
+    if (state.timings.length) {
+      updateUI();
+    }
+  });
+
+  elements.settings.endpoint.addEventListener("change", () => {
+    const value = elements.settings.endpoint.value.trim();
+    if (!value) {
+      setMessage("endpoint", "Endpoint is required.", true);
+      return;
+    }
+    try {
+      new URL(value);
+    } catch (error) {
+      setMessage("endpoint", "Endpoint must be a valid URL.", true);
+      return;
+    }
+    clearMessage("endpoint");
+    config.irsockEndpoint = value;
+    if (state.timings.length) {
+      scheduleMetadataFetch(true);
+    }
+  });
+
+  elements.settings.defaultFrequency.addEventListener("change", () => {
+    const value = Number(elements.settings.defaultFrequency.value);
+    if (!Number.isFinite(value) || value <= 0) {
+      setMessage(
+        "defaultFrequency",
+        "Default frequency must be a positive number.",
+        true
+      );
+      elements.settings.defaultFrequency.value = config.defaultFrequency;
+      return;
+    }
+    clearMessage("defaultFrequency");
+    config.defaultFrequency = Math.round(value);
+    resetFrequencyToDefault();
+    if (state.timings.length) {
+      updateUI();
+    }
+  });
+
+  elements.settings.prontoClock.addEventListener("change", () => {
+    const value = Number(elements.settings.prontoClock.value);
+    if (!Number.isFinite(value) || value <= 0) {
+      setMessage("prontoClock", "Pronto clock must be greater than zero.", true);
+      elements.settings.prontoClock.value = config.prontoClock;
+      return;
+    }
+    clearMessage("prontoClock");
+    config.prontoClock = value;
     if (state.timings.length) {
       updateUI();
     }
@@ -285,6 +378,7 @@
     elements.inputs.forEach((input) => {
       input.value = "";
     });
+    resetFrequencyToDefault();
     updateUI();
   });
 
@@ -297,14 +391,24 @@
     if (metadataTimer) {
       clearTimeout(metadataTimer);
     }
+    resetFrequencyToDefault();
   }
 
-  function scheduleMetadataFetch() {
+  function scheduleMetadataFetch(immediate = false) {
     if (metadataTimer) {
       clearTimeout(metadataTimer);
     }
     if (!state.timings.length) {
       renderMetadata();
+      return;
+    }
+    if (!config.irsockEndpoint) {
+      state.lastError = "IRSock endpoint is not configured.";
+      renderMetadata();
+      return;
+    }
+    if (immediate) {
+      fetchMetadata();
       return;
     }
     metadataTimer = setTimeout(fetchMetadata, 500);
@@ -316,7 +420,7 @@
       ir_delay: 50,
     });
     try {
-      const response = await fetch(IRSOCK_ENDPOINT, {
+      const response = await fetch(config.irsockEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -328,6 +432,7 @@
       }
       const json = await response.json();
       state.irsock = json;
+      state.lastError = null;
       if (json && json.frequency_hz) {
         setFrequency(json.frequency_hz, true);
       }
@@ -385,6 +490,11 @@
         source_format: state.sourceFormat,
         frequency_hz: state.frequencyHz,
         sample_count: state.timings.length,
+        settings: {
+          irsock_endpoint: config.irsockEndpoint,
+          default_frequency_hz: config.defaultFrequency,
+          pronto_clock_us: config.prontoClock,
+        },
       },
       raw: formatHandlers.raw.format(state),
       csv: formatHandlers.csv.format(state),
@@ -429,15 +539,16 @@
     elements.metadata.appendChild(dl);
   }
 
-  function setFrequency(value, fromParser = false) {
+  function resetFrequencyToDefault() {
+    setFrequency(config.defaultFrequency, true);
+  }
+
+  function setFrequency(value, syncInput = false) {
     if (!Number.isFinite(value) || value <= 0) {
       return;
     }
     state.frequencyHz = Math.round(value);
-    if (!fromParser) {
-      return;
-    }
-    if (Number(elements.frequency.value) !== state.frequencyHz) {
+    if (syncInput && Number(elements.frequency.value) !== state.frequencyHz) {
       elements.frequency.value = state.frequencyHz;
     }
   }
@@ -487,5 +598,59 @@
     node.classList.remove("error");
   }
 
-  updateUI();
+  function getStringParam(search, key, fallback) {
+    const value = search.get(key);
+    if (typeof value !== "string") {
+      return fallback;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : fallback;
+  }
+
+  function getNumberParam(search, key, fallback, validator = (value) => true) {
+    const value = search.get(key);
+    if (value === null) {
+      return fallback;
+    }
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || !validator(parsed)) {
+      return fallback;
+    }
+    return parsed;
+  }
+
+  function applyInitialFormatParam() {
+    const priorityFormats = ["raw", "csv", "pronto", "lirc", "json", "arduino"];
+    for (const format of priorityFormats) {
+      const value = params.get(format);
+      if (typeof value === "string" && value.trim().length) {
+        const target = elements.inputMap.get(format);
+        if (!target) {
+          continue;
+        }
+        target.value = value;
+        target.dispatchEvent(new Event("input"));
+        return true;
+      }
+    }
+    return false;
+  }
+
+  elements.settings.endpoint.value = config.irsockEndpoint;
+  elements.settings.defaultFrequency.value = config.defaultFrequency;
+  elements.settings.prontoClock.value = config.prontoClock;
+  resetFrequencyToDefault();
+
+  const frequencyParam = getNumberParam(
+    params,
+    "frequency",
+    state.frequencyHz,
+    (value) => value > 0
+  );
+  setFrequency(frequencyParam, true);
+
+  const formatApplied = applyInitialFormatParam();
+  if (!formatApplied) {
+    updateUI();
+  }
 })();
